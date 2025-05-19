@@ -13,15 +13,40 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar as CalendarIcon } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useForm } from 'react-hook-form';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+
+type BookingFormValues = {
+  name: string;
+  email: string;
+  phone: string;
+  service: string;
+  timeSlot: string;
+};
 
 const Booking = () => {
   const [date, setDate] = useState<Date | undefined>(new Date());
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [service, setService] = useState('');
-  const [timeSlot, setTimeSlot] = useState('');
-  const [bookingSubmitted, setBookingSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
+  
+  const form = useForm<BookingFormValues>({
+    defaultValues: {
+      name: '',
+      email: '',
+      phone: '',
+      service: '',
+      timeSlot: '',
+    }
+  });
 
   const timeSlots = [
     '9:00 AM - 11:00 AM',
@@ -30,21 +55,50 @@ const Booking = () => {
     '4:30 PM - 6:30 PM',
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // In a real application, this would send the booking data to a server
-    console.log({ name, email, phone, service, date, timeSlot });
-    setBookingSubmitted(true);
+  const onSubmit = async (values: BookingFormValues) => {
+    if (!date) {
+      toast({
+        title: "Missing date",
+        description: "Please select a booking date",
+        variant: "destructive",
+      });
+      return;
+    }
     
-    // Reset form after submission
-    setTimeout(() => {
-      setName('');
-      setEmail('');
-      setPhone('');
-      setService('');
-      setTimeSlot('');
-      setBookingSubmitted(false);
-    }, 3000);
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase
+        .from('booking_requests')
+        .insert([
+          {
+            name: values.name,
+            email: values.email,
+            phone: values.phone,
+            service: values.service,
+            booking_date: date.toISOString().split('T')[0],
+            time_slot: values.timeSlot,
+          }
+        ]);
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Booking Submitted!",
+        description: "Thank you for your booking request. We will contact you soon to confirm your session.",
+      });
+      
+      form.reset();
+      setDate(new Date());
+    } catch (error) {
+      console.error('Error submitting booking form:', error);
+      toast({
+        title: "Something went wrong",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -64,61 +118,87 @@ const Booking = () => {
               <CardDescription>Fill out the form below to book your photography session</CardDescription>
             </CardHeader>
             <CardContent>
-              {bookingSubmitted ? (
-                <div className="text-center p-6 bg-green-50 rounded-lg">
-                  <h3 className="text-xl font-medium text-green-600 mb-2">Booking Request Submitted!</h3>
-                  <p className="text-green-600">
-                    Thank you for your booking request. We will contact you soon to confirm your session.
-                  </p>
-                </div>
-              ) : (
-                <form onSubmit={handleSubmit} className="space-y-6">
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Full Name</Label>
-                      <Input 
-                        id="name" 
-                        value={name} 
-                        onChange={(e) => setName(e.target.value)} 
-                        placeholder="John Doe" 
-                        required 
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input 
-                        id="email" 
-                        type="email" 
-                        value={email} 
-                        onChange={(e) => setEmail(e.target.value)} 
-                        placeholder="your@email.com" 
-                        required 
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Phone Number</Label>
-                      <Input 
-                        id="phone" 
-                        value={phone} 
-                        onChange={(e) => setPhone(e.target.value)} 
-                        placeholder="+91 12345 67890" 
-                        required 
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="service">Service Type</Label>
-                      <Select value={service} onValueChange={setService} required>
-                        <SelectTrigger id="service">
-                          <SelectValue placeholder="Select a service" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="wedding">Wedding Photography</SelectItem>
-                          <SelectItem value="event">Event Coverage</SelectItem>
-                          <SelectItem value="portrait">Portrait Session</SelectItem>
-                          <SelectItem value="commercial">Commercial Photography</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Full Name</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="John Doe" required />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={form.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input 
+                              {...field} 
+                              type="email" 
+                              placeholder="your@email.com" 
+                              required 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={form.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Phone Number</FormLabel>
+                          <FormControl>
+                            <Input 
+                              {...field} 
+                              placeholder="+91 12345 67890" 
+                              required 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={form.control}
+                      name="service"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Service Type</FormLabel>
+                          <Select 
+                            onValueChange={field.onChange} 
+                            defaultValue={field.value}
+                            value={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select a service" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="wedding">Wedding Photography</SelectItem>
+                              <SelectItem value="event">Event Coverage</SelectItem>
+                              <SelectItem value="portrait">Portrait Session</SelectItem>
+                              <SelectItem value="commercial">Commercial Photography</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -139,20 +219,36 @@ const Booking = () => {
                         />
                       </div>
                     </div>
+                    
                     <div className="space-y-2">
-                      <Label htmlFor="timeSlot">Preferred Time</Label>
-                      <Select value={timeSlot} onValueChange={setTimeSlot} required>
-                        <SelectTrigger id="timeSlot">
-                          <SelectValue placeholder="Select a time slot" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {timeSlots.map((slot) => (
-                            <SelectItem key={slot} value={slot}>
-                              {slot}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormField
+                        control={form.control}
+                        name="timeSlot"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Preferred Time</FormLabel>
+                            <Select 
+                              onValueChange={field.onChange} 
+                              defaultValue={field.value}
+                              value={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select a time slot" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {timeSlots.map((slot) => (
+                                  <SelectItem key={slot} value={slot}>
+                                    {slot}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                       
                       <div className="mt-6 space-y-4">
                         <div className="p-4 bg-primary/5 rounded-md">
@@ -162,17 +258,23 @@ const Booking = () => {
                           </h4>
                           <div className="text-sm text-muted-foreground">
                             <p>Selected Date: {date ? date.toLocaleDateString() : 'None'}</p>
-                            <p>Time Slot: {timeSlot || 'None'}</p>
-                            <p>Service: {service || 'None'}</p>
+                            <p>Time Slot: {form.watch("timeSlot") || 'None'}</p>
+                            <p>Service: {form.watch("service") || 'None'}</p>
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <Button type="submit" className="w-full">Submit Booking Request</Button>
+                  <Button 
+                    type="submit" 
+                    className="w-full"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? "Submitting..." : "Submit Booking Request"}
+                  </Button>
                 </form>
-              )}
+              </Form>
             </CardContent>
           </Card>
         </div>

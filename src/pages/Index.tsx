@@ -7,6 +7,7 @@ import Services from '@/components/Services';
 import Booking from '@/components/Booking';
 import Contact from '@/components/Contact';
 import Footer from '@/components/Footer';
+import { Toaster } from '@/components/ui/toaster';
 
 const Index = () => {
   // Animation on scroll logic
@@ -55,6 +56,7 @@ const Index = () => {
       </div>
       
       <Footer />
+      <Toaster />
     </div>
   );
 };

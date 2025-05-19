@@ -6,26 +6,67 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Phone, Mail, Image as ImageIcon } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useForm } from 'react-hook-form';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+
+type ContactFormValues = {
+  name: string;
+  email: string;
+  message: string;
+};
 
 const Contact = () => {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [message, setMessage] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
+  
+  const form = useForm<ContactFormValues>({
+    defaultValues: {
+      name: '',
+      email: '',
+      message: ''
+    }
+  });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // In a real application, this would send the form data to a server
-    console.log({ name, email, message });
-    setSubmitted(true);
-    
-    // Reset form after submission
-    setTimeout(() => {
-      setName('');
-      setEmail('');
-      setMessage('');
-      setSubmitted(false);
-    }, 3000);
+  const onSubmit = async (values: ContactFormValues) => {
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase
+        .from('contact_submissions')
+        .insert([
+          {
+            name: values.name,
+            email: values.email,
+            message: values.message
+          }
+        ]);
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Message Sent!",
+        description: "Thank you for contacting us. We'll get back to you soon.",
+      });
+      
+      form.reset();
+    } catch (error) {
+      console.error('Error submitting contact form:', error);
+      toast({
+        title: "Something went wrong",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -88,55 +129,69 @@ const Contact = () => {
           <div>
             <Card className="bg-white text-foreground">
               <CardContent className="p-6">
-                {submitted ? (
-                  <div className="text-center p-6">
-                    <h3 className="text-xl font-medium text-green-600 mb-2">Message Sent!</h3>
-                    <p className="text-muted-foreground">
-                      Thank you for contacting us. We'll get back to you soon.
-                    </p>
-                  </div>
-                ) : (
-                  <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="contact-name" className="text-foreground">Name</Label>
-                      <Input
-                        id="contact-name"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="Your Name"
-                        required
-                      />
-                    </div>
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Name</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="Your Name" required />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     
-                    <div className="space-y-2">
-                      <Label htmlFor="contact-email" className="text-foreground">Email</Label>
-                      <Input
-                        id="contact-email"
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="your@email.com"
-                        required
-                      />
-                    </div>
+                    <FormField
+                      control={form.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input 
+                              {...field} 
+                              type="email" 
+                              placeholder="your@email.com" 
+                              required 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     
-                    <div className="space-y-2">
-                      <Label htmlFor="contact-message" className="text-foreground">Message</Label>
-                      <Textarea
-                        id="contact-message"
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        placeholder="Tell us about your requirements..."
-                        rows={5}
-                        required
-                      />
-                    </div>
+                    <FormField
+                      control={form.control}
+                      name="message"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Message</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              {...field}
+                              placeholder="Tell us about your requirements..."
+                              rows={5}
+                              required
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     
-                    <Button type="submit" className="w-full bg-primary hover:bg-primary/90">
-                      Send Message
+                    <Button 
+                      type="submit" 
+                      className="w-full bg-primary hover:bg-primary/90"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? "Sending..." : "Send Message"}
                     </Button>
                   </form>
-                )}
+                </Form>
               </CardContent>
             </Card>
           </div>
