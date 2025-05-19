@@ -67,20 +67,38 @@ const Booking = () => {
     
     setIsSubmitting(true);
     try {
-      const { error } = await supabase
-        .from('booking_requests')
-        .insert([
-          {
-            name: values.name,
-            email: values.email,
-            phone: values.phone,
-            service: values.service,
-            booking_date: date.toISOString().split('T')[0],
-            time_slot: values.timeSlot,
-          }
-        ]);
+      // Step 1: Insert into database
+      const bookingData = {
+        name: values.name,
+        email: values.email,
+        phone: values.phone,
+        service: values.service,
+        booking_date: date.toISOString().split('T')[0],
+        time_slot: values.timeSlot,
+      };
       
-      if (error) throw error;
+      const { error: dbError } = await supabase
+        .from('booking_requests')
+        .insert([bookingData]);
+      
+      if (dbError) throw dbError;
+      
+      // Step 2: Send email notification
+      try {
+        await fetch('https://azpknjxdalhlshambyzg.supabase.co/functions/v1/send-email', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            type: 'booking',
+            data: bookingData
+          }),
+        });
+      } catch (emailError) {
+        console.error('Error sending email notification:', emailError);
+        // We don't want to fail the entire submission if just the email fails
+      }
       
       toast({
         title: "Booking Submitted!",

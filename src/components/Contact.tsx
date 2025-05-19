@@ -39,7 +39,8 @@ const Contact = () => {
   const onSubmit = async (values: ContactFormValues) => {
     setIsSubmitting(true);
     try {
-      const { error } = await supabase
+      // Step 1: Insert into database
+      const { error: dbError } = await supabase
         .from('contact_submissions')
         .insert([
           {
@@ -49,7 +50,24 @@ const Contact = () => {
           }
         ]);
       
-      if (error) throw error;
+      if (dbError) throw dbError;
+      
+      // Step 2: Send email notification
+      try {
+        await fetch('https://azpknjxdalhlshambyzg.supabase.co/functions/v1/send-email', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            type: 'contact',
+            data: values
+          }),
+        });
+      } catch (emailError) {
+        console.error('Error sending email notification:', emailError);
+        // We don't want to fail the entire submission if just the email fails
+      }
       
       toast({
         title: "Message Sent!",
